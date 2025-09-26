@@ -1,20 +1,43 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+// App.js
+import React from "react";
+import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-export default function App() {
+import HomeScreen from "./src/screens/HomeScreen";
+import EditScreen from "./src/screens/EditScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+
+import { ThemeProvider, useThemeContext } from "./src/context/ThemeContext";
+import { ExpensesProvider } from "./src/storage/db";
+
+const RootStack = createNativeStackNavigator();
+
+function AppShell() {
+  const { resolved } = useThemeContext();
+  const navTheme = resolved === "dark" ? DarkTheme : DefaultTheme;
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer theme={navTheme}>
+      <RootStack.Navigator screenOptions={{ headerBackTitle: "Back" }}>
+        <RootStack.Screen name="Home" component={HomeScreen} options={{ title: "Expense Tracker" }} />
+        <RootStack.Screen name="Edit" component={EditScreen} options={{ title: "Add / Edit" }} />
+        <RootStack.Screen name="Settings" component={SettingsScreen} />
+        <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+      </RootStack.Navigator>
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <ExpensesProvider>
+          <AppShell />
+        </ExpensesProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
