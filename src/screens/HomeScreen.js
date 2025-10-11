@@ -1,6 +1,13 @@
 // src/screens/HomeScreen.js
 import React, { useMemo, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  Modal,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useExpenses } from "../storage/db";
 import ChartCard from "../components/ChartCard";
@@ -24,7 +31,9 @@ const isThisWeek = (d) => {
 const isThisMonth = (d) => {
   const dt = toDate(d);
   const now = new Date();
-  return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
+  return (
+    dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth()
+  );
 };
 
 export default function HomeScreen({ navigation }) {
@@ -32,6 +41,7 @@ export default function HomeScreen({ navigation }) {
   const exp = (typeof useExpenses === "function" ? useExpenses() : null) ?? {};
   const {
     items = [],
+    add = () => {},
     remove = () => {},
     total = 0,
     isReady = true,
@@ -43,6 +53,22 @@ export default function HomeScreen({ navigation }) {
   const [q, setQ] = useState("");
   const [range, setRange] = useState("All");
 
+  // ---- KPIs ----
+  const kpis = useMemo(() => {
+    const sum = (arr) =>
+      arr.reduce((a, x) => a + Number(x.amount || 0), 0);
+
+    const todaySum = sum(items.filter((x) => isToday(x.date)));
+    const monthSum = sum(items.filter((x) => isThisMonth(x.date)));
+    return {
+      todaySum,
+      monthSum,
+      count: items.length,
+      allSum: sum(items),
+    };
+  }, [items]);
+
+  // ---- Filters (text + time range) ----
   const filtered = useMemo(() => {
     const passesRange = (d) => {
       if (!d || range === "All") return true;
@@ -54,9 +80,49 @@ export default function HomeScreen({ navigation }) {
     return (items || [])
       .filter((x) => passesRange(x.date))
       .filter((x) =>
-        q ? x.title?.toLowerCase().includes(q.toLowerCase()) : true
+        q ? `${x.title} ${x.notes || ""}`.toLowerCase().includes(q.toLowerCase()) : true
       );
   }, [items, q, range]);
+
+  // ---- Last 7 days chart data ----
+  const last7 = useMemo(() => {
+    const out = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = ymd(d);
+      const spent = items
+        .filter((x) => ymd(x.date) === key)
+        .reduce((a, x) => a + Number(x.amount || 0), 0);
+      out.push({ label: key.slice(5), value: spent }); // e.g. "10-11"
+    }
+    return out;
+  }, [items]);
+
+  // ---- Quick Add modal state ----
+  const [showAdd, setShowAdd] = useState(false);
+  const [qaTitle, setQaTitle] = useState("");
+  const [qaAmount, setQaAmount] = useState("");
+  const [qaCategory, setQaCategory] = useState("General");
+
+  const submitQuickAdd = () => {
+    const amt = Number(qaAmount);
+    if (!qaTitle || !amt) return;
+    const today = ymd(new Date());
+    add({
+      title: qaTitle.trim(),
+      amount: amt,
+      category: qaCategory.trim() || "General",
+      date: today,
+    });
+    setQaTitle("");
+    setQaAmount("");
+    setQaCategory("General");
+    setShowAdd(false);
+  };
+
+  // ---- Recent list (latest 10 from already-filtered) ----
+  const recent = filtered.slice(0, 10);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
@@ -65,18 +131,87 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerRow}>
           <Text style={[styles.h, { color: t.text }]}>Expense Tracker</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={() => navigation.navigate("Settings")} style={[styles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+            <Pressable
+              onPress={() => navigation.navigate("Reports")}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: t.card, borderColor: t.border },
+              ]}
+            >
+              <Text style={{ color: t.text }}>📊</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => navigation.navigate("Settings")}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: t.card, borderColor: t.border },
+              ]}
+            >
               <Text style={{ color: t.text }}>⚙️</Text>
             </Pressable>
-            <Pressable onPress={() => navigation.navigate("Edit", { mode: "add" })} style={[styles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+            <Pressable
+              onPress={() => setShowAdd(true)}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: t.card, borderColor: t.border },
+              ]}
+            >
               <Text style={{ color: t.text }}>➕</Text>
             </Pressable>
           </View>
         </View>
 
-        {/* Total */}
-        <View style={[styles.totalCard, { backgroundColor: t.card, borderColor: t.border }, t.shadow]}>
-          <Text style={[styles.totalLabel, { color: t.muted }]}>Total Spent</Text>
+        {/* KPIs */}
+        <View style={styles.kpiRow}>
+          <View
+            style={[
+              styles.kpiCard,
+              { backgroundColor: t.card, borderColor: t.border },
+              t.shadow,
+            ]}
+          >
+            <Text style={[styles.kpiLabel, { color: t.muted }]}>Today</Text>
+            <Text style={[styles.kpiVal, { color: t.text }]}>
+              ${kpis.todaySum.toFixed(2)}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.kpiCard,
+              { backgroundColor: t.card, borderColor: t.border },
+              t.shadow,
+            ]}
+          >
+            <Text style={[styles.kpiLabel, { color: t.muted }]}>Month</Text>
+            <Text style={[styles.kpiVal, { color: t.text }]}>
+              ${kpis.monthSum.toFixed(2)}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.kpiCard,
+              { backgroundColor: t.card, borderColor: t.border },
+              t.shadow,
+            ]}
+          >
+            <Text style={[styles.kpiLabel, { color: t.muted }]}>Items</Text>
+            <Text style={[styles.kpiVal, { color: t.text }]}>
+              {kpis.count}
+            </Text>
+          </View>
+        </View>
+
+        {/* Total (kept from your version) */}
+        <View
+          style={[
+            styles.totalCard,
+            { backgroundColor: t.card, borderColor: t.border },
+            t.shadow,
+          ]}
+        >
+          <Text style={[styles.totalLabel, { color: t.muted }]}>
+            Total Spent (All)
+          </Text>
           <Text style={[styles.totalValue, { color: t.text }]}>
             ${Number(total || 0).toFixed(2)}
           </Text>
@@ -104,7 +239,10 @@ export default function HomeScreen({ navigation }) {
                 onPress={() => setRange(r)}
                 style={[
                   styles.pill,
-                  { backgroundColor: on ? "#0a7" : t.card, borderColor: t.border },
+                  {
+                    backgroundColor: on ? "#0a7" : t.card,
+                    borderColor: t.border,
+                  },
                 ]}
               >
                 <Text style={{ color: on ? "#fff" : t.text }}>{r}</Text>
@@ -113,16 +251,29 @@ export default function HomeScreen({ navigation }) {
           })}
         </View>
 
-        {/* Chart */}
-        <ChartCard data={filtered} />
+        {/* Chart (Last 7 days) */}
+        <ChartCard title="Last 7 days" data={last7} />
+
+        {/* Section header with shortcuts */}
+        <View style={styles.sectionHeader}>
+          <Text style={{ fontWeight: "bold", color: t.text }}>Recent</Text>
+          <View style={{ flexDirection: "row", gap: 16 }}>
+            <Pressable onPress={() => setShowAdd(true)}>
+              <Text style={{ color: t.accent || "#0a7" }}>＋ Quick Add</Text>
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate("History")}>
+              <Text style={{ color: t.accent || "#0a7" }}>View All →</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {/* List */}
-        {filtered.length === 0 ? (
+        {recent.length === 0 ? (
           <Text style={{ textAlign: "center", marginTop: 10, color: t.muted }}>
             {isReady ? "No expenses match. Try changing filters." : "Loading…"}
           </Text>
         ) : (
-          filtered.map((e) => (
+          recent.map((e) => (
             <View
               key={e.id}
               style={[
@@ -130,14 +281,87 @@ export default function HomeScreen({ navigation }) {
                 { backgroundColor: t.card, borderColor: t.border },
               ]}
             >
-              <Text style={{ flex: 1, color: t.text }}>{e.title}</Text>
-              <Text style={{ color: t.text }}>${Number(e.amount).toFixed(2)}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: t.text, fontWeight: "600" }}>
+                  {e.title}
+                </Text>
+                <Text style={{ color: t.muted, fontSize: 12 }}>
+                  {e.category || "General"} • {ymd(e.date)}
+                </Text>
+              </View>
+              <Text style={{ color: t.text }}>
+                ${Number(e.amount).toFixed(2)}
+              </Text>
               <Pressable onPress={() => remove(e.id)} style={styles.del}>
                 <Text style={{ color: t.text }}>🗑️</Text>
               </Pressable>
             </View>
           ))
         )}
+
+        {/* Quick Add Modal */}
+        <Modal visible={showAdd} transparent animationType="slide">
+          <View style={{ flex: 1, backgroundColor: "#0008", justifyContent: "flex-end" }}>
+            <View
+              style={{
+                backgroundColor: t.card,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: t.border,
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: t.text, fontWeight: "bold", fontSize: 16 }}>
+                Quick Add
+              </Text>
+
+              <TextInput
+                placeholder="Title"
+                value={qaTitle}
+                onChangeText={setQaTitle}
+                style={[
+                  styles.input,
+                  { backgroundColor: t.bg, borderColor: t.border, color: t.text },
+                ]}
+                placeholderTextColor={t.muted}
+              />
+              <TextInput
+                placeholder="Amount"
+                value={qaAmount}
+                onChangeText={setQaAmount}
+                keyboardType="decimal-pad"
+                style={[
+                  styles.input,
+                  { backgroundColor: t.bg, borderColor: t.border, color: t.text },
+                ]}
+                placeholderTextColor={t.muted}
+              />
+              <TextInput
+                placeholder="Category (e.g. Food)"
+                value={qaCategory}
+                onChangeText={setQaCategory}
+                style={[
+                  styles.input,
+                  { backgroundColor: t.bg, borderColor: t.border, color: t.text },
+                ]}
+                placeholderTextColor={t.muted}
+              />
+
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 16, marginTop: 4 }}>
+                <Pressable onPress={() => setShowAdd(false)}>
+                  <Text style={{ color: t.text }}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={submitQuickAdd}>
+                  <Text style={{ color: t.accent || "#0a7", fontWeight: "bold" }}>
+                    Add
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </DismissKeyboardView>
     </SafeAreaView>
   );
@@ -156,6 +380,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
+
+  // KPIs
+  kpiRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
+  kpiCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  kpiLabel: { fontSize: 12, fontWeight: "600" },
+  kpiVal: { fontSize: 18, fontWeight: "bold" },
+
   totalCard: {
     borderRadius: 12,
     padding: 12,
@@ -165,6 +402,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontWeight: "600" },
   totalValue: { fontSize: 24, fontWeight: "bold" },
+
   search: {
     borderWidth: 1,
     borderRadius: 10,
@@ -179,6 +417,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
+
+  sectionHeader: {
+    marginTop: 8,
+    marginBottom: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
   rowItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -189,4 +436,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   del: { paddingHorizontal: 6, paddingVertical: 2 },
+
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
 });

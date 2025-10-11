@@ -1,5 +1,5 @@
 // src/screens/EditScreen.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,9 +12,17 @@ import {
   Pressable,
   TouchableWithoutFeedback,
   Keyboard,
+  Image,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useExpenses } from "../storage/db";
+
+// Helpers
+const toDate = (d) => (d instanceof Date ? d : new Date(String(d)));
+const ymd = (d) => toDate(d).toISOString().slice(0, 10);
 
 const CATEGORIES = [
   "General",
@@ -34,7 +42,9 @@ function Chip({ label, active, onPress }) {
       style={[styles.chip, active && styles.chipActive]}
       android_ripple={{ color: "#e5e7eb" }}
     >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -44,18 +54,55 @@ export default function EditScreen({ route, navigation }) {
   const isEdit = mode === "edit";
   const { add, update, remove } = useExpenses();
 
+  // Base fields
   const [title, setTitle] = useState(item?.title ?? "");
   const [amount, setAmount] = useState(item?.amount ? String(item.amount) : "");
   const [category, setCategory] = useState(item?.category ?? "General");
   const [note, setNote] = useState(item?.note ?? "");
 
+  // Date (YYYY-MM-DD)
+  const [date, setDate] = useState(item?.date ? toDate(item.date) : new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Photo
+  const [photoUri, setPhotoUri] = useState(item?.photoUri ?? null);
+
+  // Recurring
+  const initialEvery = item?.recurring?.every ?? "none"; // 'none' | 'week' | 'month'
+  const [every, setEvery] = useState(initialEvery);
+  // For weekly, dayOfWeek: 0-6 (Sun-Sat). For monthly, dayOfMonth: 1-28 (safe).
+  const [dayOfWeek, setDayOfWeek] = useState(
+    typeof item?.recurring?.day === "number" && initialEvery === "week"
+      ? item.recurring.day
+      : new Date().getDay()
+  );
+  const [dayOfMonth, setDayOfMonth] = useState(
+    typeof item?.recurring?.day === "number" && initialEvery === "month"
+      ? Math.min(Math.max(item.recurring.day, 1), 28)
+      : Math.min(new Date().getDate(), 28)
+  );
+
+  // Due date (optional)
+  const [hasDue, setHasDue] = useState(!!item?.dueAt);
+  const [dueAt, setDueAt] = useState(item?.dueAt ? toDate(item.dueAt) : new Date());
+  const [showDuePicker, setShowDuePicker] = useState(false);
+
   useEffect(() => {
     navigation.setOptions({ title: isEdit ? "Edit Expense" : "Add Expense" });
   }, [isEdit, navigation]);
 
+  const recurringPayload = useMemo(() => {
+    if (every === "none") return null;
+    return {
+      every, // 'week' | 'month'
+      day: every === "week" ? dayOfWeek : dayOfMonth,
+    };
+  }, [every, dayOfWeek, dayOfMonth]);
+
   const onSave = () => {
     const amt = Number(amount);
-    if (!title.trim()) return Alert.alert("Title required", "Please enter a title.");
+    if (!title.trim())
+      return Alert.alert("Title required", "Please enter a title.");
     if (!amount || isNaN(amt) || amt <= 0)
       return Alert.alert("Amount invalid", "Enter a positive number.");
 
@@ -64,6 +111,10 @@ export default function EditScreen({ route, navigation }) {
       amount: amt,
       category,
       note: note.trim(),
+      date: ymd(date), // persist as ISO YYYY-MM-DD
+      photoUri: photoUri || null,
+      recurring: recurringPayload,
+      dueAt: hasDue ? new Date(dueAt).toISOString() : null,
     };
 
     if (isEdit) update(item.id, payload);
@@ -85,6 +136,21 @@ export default function EditScreen({ route, navigation }) {
       },
     ]);
 
+  async function pickPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo library access to attach a receipt.");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
+    if (!res.canceled) setPhotoUri(res.assets[0].uri);
+  }
+
+  const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: "padding", android: undefined })}
@@ -94,6 +160,8 @@ export default function EditScreen({ route, navigation }) {
         {/* Tap anywhere to dismiss keyboard */}
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={styles.form}>
+
+            {/* Title */}
             <Text style={styles.label}>Title</Text>
             <TextInput
               value={title}
@@ -103,6 +171,7 @@ export default function EditScreen({ route, navigation }) {
               returnKeyType="next"
             />
 
+            {/* Amount */}
             <Text style={styles.label}>Amount</Text>
             <TextInput
               value={amount}
@@ -114,25 +183,151 @@ export default function EditScreen({ route, navigation }) {
               onSubmitEditing={Keyboard.dismiss}
             />
 
+            {/* Date */}
+            <Text style={styles.label}>Date</Text>
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
+              style={[styles.input, styles.pressableField]}
+            >
+              <Text style={styles.pressableText}>{ymd(date)}</Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(e, sel) => {
+                  setShowDatePicker(false);
+                  if (sel) setDate(sel);
+                }}
+                maximumDate={new Date()}
+              />
+            )}
+
+            {/* Category */}
             <Text style={styles.label}>Category</Text>
             <View style={styles.chipsRow}>
               {CATEGORIES.map((c) => (
-                <Chip key={c} label={c} active={c === category} onPress={() => setCategory(c)} />
+                <Chip
+                  key={c}
+                  label={c}
+                  active={c === category}
+                  onPress={() => setCategory(c)}
+                />
               ))}
             </View>
 
+            {/* Note */}
             <Text style={styles.label}>Note (optional)</Text>
             <TextInput
               value={note}
               onChangeText={setNote}
-              placeholder="All the basic grocery"
+              placeholder="e.g., Fruit, milk, bread..."
               style={[styles.input, styles.noteInput]}
               multiline
               returnKeyType="default"
             />
 
-            <TouchableOpacity style={styles.primaryBtn} onPress={onSave} activeOpacity={0.9}>
-              <Text style={styles.primaryBtnText}>{isEdit ? "Save Changes" : "Add Expense"}</Text>
+            {/* Photo */}
+            <Text style={styles.label}>Photo (receipt, optional)</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <TouchableOpacity style={styles.outlineBtn} onPress={pickPhoto}>
+                <Text style={styles.outlineBtnText}>Add Photo</Text>
+              </TouchableOpacity>
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={{ width: 54, height: 54, borderRadius: 8, borderWidth: 1, borderColor: "#e5e7eb" }}
+                />
+              ) : null}
+            </View>
+
+            {/* Recurring */}
+            <Text style={styles.label}>Recurring</Text>
+            <View style={styles.chipsRow}>
+              {["none", "week", "month"].map((opt) => (
+                <Chip
+                  key={opt}
+                  label={opt === "none" ? "None" : opt === "week" ? "Weekly" : "Monthly"}
+                  active={every === opt}
+                  onPress={() => setEvery(opt)}
+                />
+              ))}
+            </View>
+
+            {every === "week" && (
+              <>
+                <Text style={[styles.smallLabel]}>Day of week</Text>
+                <View style={styles.chipsRow}>
+                  {WEEKDAYS.map((d, idx) => (
+                    <Chip
+                      key={d}
+                      label={d}
+                      active={dayOfWeek === idx}
+                      onPress={() => setDayOfWeek(idx)}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+
+            {every === "month" && (
+              <>
+                <Text style={[styles.smallLabel]}>Day of month (1–28)</Text>
+                <TextInput
+                  value={String(dayOfMonth)}
+                  onChangeText={(txt) => {
+                    const n = Math.max(1, Math.min(28, Number(txt) || 1));
+                    setDayOfMonth(n);
+                  }}
+                  keyboardType="number-pad"
+                  placeholder="1-28"
+                  style={styles.input}
+                />
+              </>
+            )}
+
+            {/* Due date */}
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Due date (optional)</Text>
+              <Switch value={hasDue} onValueChange={setHasDue} />
+            </View>
+
+            <Pressable
+              disabled={!hasDue}
+              onPress={() => setShowDuePicker(true)}
+              style={[
+                styles.input,
+                styles.pressableField,
+                !hasDue && { opacity: 0.6 },
+              ]}
+            >
+              <Text style={styles.pressableText}>
+                {hasDue ? new Date(dueAt).toLocaleString() : "No due date"}
+              </Text>
+            </Pressable>
+            {showDuePicker && (
+              <DateTimePicker
+                value={dueAt}
+                mode="datetime"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(e, sel) => {
+                  setShowDuePicker(false);
+                  if (sel) setDueAt(sel);
+                }}
+                minimumDate={new Date()} // due is future by default
+              />
+            )}
+
+            {/* Actions */}
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={onSave}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.primaryBtnText}>
+                {isEdit ? "Save Changes" : "Add Expense"}
+              </Text>
             </TouchableOpacity>
 
             {isEdit && (
@@ -150,7 +345,9 @@ export default function EditScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   form: { flex: 1, padding: 16 },
-  label: { marginTop: 10, marginBottom: 6, color: "#111827", fontWeight: "700" },
+  label: { marginTop: 12, marginBottom: 6, color: "#111827", fontWeight: "700" },
+  smallLabel: { marginTop: 8, marginBottom: 6, color: "#374151", fontWeight: "600" },
+
   input: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -175,6 +372,28 @@ const styles = StyleSheet.create({
   chipText: { color: "#4c51f7", fontWeight: "700" },
   chipTextActive: { color: "#fff" },
 
+  pressableField: {
+    justifyContent: "center",
+  },
+  pressableText: { color: "#111827", fontWeight: "600" },
+
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+
+  outlineBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+  },
+  outlineBtnText: { color: "#111827", fontWeight: "700" },
+
   primaryBtn: {
     marginTop: 16,
     backgroundColor: "#635BFF",
@@ -183,6 +402,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+
   dangerBtn: {
     marginTop: 10,
     borderRadius: 14,
