@@ -1,0 +1,22 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.9.3
+2 info using node@v22.18.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\assignment-2-main\.npmrc
+5 silly config load:file:C:\Users\abhed\.npmrc
+6 silly config load:file:C:\Users\abhed\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm exec eas-cli --version
+8 verbose argv "exec" "--" "eas-cli" "--version"
+9 verbose logfile logs-max:10 dir:D:\assignment-2-main\npm-cache\_logs\2025-10-16T07_30_06_150Z-
+10 verbose logfile D:\assignment-2-main\npm-cache\_logs\2025-10-16T07_30_06_150Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+14 http fetch GET 200 https://registry.npmjs.org/eas-cli 1182ms (cache miss)
+15 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+16 verbose cwd D:\assignment-2-main
+17 verbose os Windows_NT 10.0.26100
+18 verbose node v22.18.0
+19 verbose npm  v10.9.3
+20 verbose exit 0
+21 info ok

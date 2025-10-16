@@ -1,0 +1,70 @@
+{
+  "name": "expensetracker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "jest --coverage"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-navigation/native": "^7.1.18",
+    "@react-navigation/native-stack": "^7.3.27",
+    "expo": "~54.0.10",
+    "expo-file-system": "~19.0.17",
+    "expo-font": "~14.0.8",
+    "expo-image-picker": "~17.0.8",
+    "expo-linear-gradient": "~15.0.7",
+    "expo-local-authentication": "~17.0.7",
+    "expo-notifications": "~0.32.12",
+    "expo-sharing": "~14.0.7",
+    "expo-sqlite": "~16.0.8",
+    "expo-status-bar": "~3.0.8",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-chart-kit": "^6.12.0",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1",
+    "victory-native": "^36.6.11"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
+    "babel-jest": "^30.2.0",
+    "jest": "^30.2.0",
+    "jest-expo": "^54.0.0",
+    "react-test-renderer": "19.1.0"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(react-native|@react-native|@react-navigation|expo($|/.*)|expo-.*|expo-modules-core|react-native-reanimated|react-native-gesture-handler|react-native-svg)/)"
+    ],
+    "moduleNameMapper": {
+      "^expo($|/.*)$": "<rootDir>/__mocks__/expo.js",
+      "^@react-native-async-storage/async-storage$": "@react-native-async-storage/async-storage/jest/async-storage-mock",
+      "^expo-status-bar$": "<rootDir>/__mocks__/expo-status-bar.js",
+      "^expo-sharing$": "<rootDir>/__mocks__/expo-sharing.js",
+      "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.js",
+      "^expo-local-authentication$": "<rootDir>/__mocks__/expo-local-authentication.js",
+      "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
+      "^expo-image-picker$": "<rootDir>/__mocks__/expo-image-picker.js",
+      "^@react-native-community/datetimepicker$": "<rootDir>/__mocks__/datetimepicker.js",
+      "\\.(svg)$": "<rootDir>/__mocks__/svgMock.js"
+    }
+  }
+}
